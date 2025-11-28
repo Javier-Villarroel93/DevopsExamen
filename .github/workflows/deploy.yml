@@ -8,8 +8,8 @@ on:
 env:
   IMAGE_VERSION: "1.0.5"
   APP_NAME: "villarroel"
-  GH_OWNER: "${{ github.repository_owner }}"
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/villarroel
+  GH_OWNER: "javier-villarroel93"
+  IMAGE_NAME: ghcr.io/javier-villarroel93/villarroel
 
 jobs:
   test:
