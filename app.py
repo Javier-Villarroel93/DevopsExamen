@@ -3,9 +3,11 @@ from __future__ import annotations
 import ast
 import operator
 import re
-from typing import Callable, Optional
+import secrets
+from typing import Callable, Dict, Optional
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 
@@ -22,6 +24,9 @@ ALLOWED_BIN_OPS = {
 }
 
 ALLOWED_UNARY_OPS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+
+# Simple in-memory user store for demo auth
+USER_STORE: Dict[str, str] = {}
 
 
 def _eval_ast(node: ast.AST) -> float:
@@ -86,6 +91,30 @@ def ai_resolve(text: str) -> float:
     return safe_eval_expression(text)
 
 
+# --- Auth helpers -----------------------------------------------------------
+
+
+def _validate_credentials(payload: dict) -> tuple[str, str]:
+    username = (payload.get("username") or "").strip()
+    password = (payload.get("password") or "").strip()
+    if len(username) < 3 or len(password) < 6:
+        raise ValueError("Usuario (>=3) y clave (>=6) son requeridos")
+    return username, password
+
+
+def register_user(username: str, password: str) -> None:
+    if username in USER_STORE:
+        raise ValueError("El usuario ya existe")
+    USER_STORE[username] = generate_password_hash(password)
+
+
+def login_user(username: str, password: str) -> str:
+    hashed = USER_STORE.get(username)
+    if not hashed or not check_password_hash(hashed, password):
+        raise ValueError("Credenciales invalidas")
+    return secrets.token_hex(16)
+
+
 # --- HTTP interface ----------------------------------------------------------
 
 @app.route("/", methods=["GET"])
@@ -118,6 +147,30 @@ def calculate():
 
     mode = "nlp" if ai_guess_operation(user_input) else "expression"
     return jsonify({"input": user_input, "mode": mode, "result": result})
+
+
+@app.route("/api/register", methods=["POST"])
+def register():
+    payload = request.get_json(silent=True) or {}
+    try:
+        username, password = _validate_credentials(payload)
+        register_user(username, password)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"message": "Usuario creado", "username": username}), 201
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    payload = request.get_json(silent=True) or {}
+    try:
+        username, password = _validate_credentials(payload)
+        token = login_user(username, password)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 401
+
+    return jsonify({"message": "Login exitoso", "token": token, "username": username})
 
 
 if __name__ == "__main__":

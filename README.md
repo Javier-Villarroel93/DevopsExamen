@@ -1,20 +1,21 @@
-# Calculadora Flask (CI/CD)
+# Flask Auth + Calculadora (Villarroel)
 
-Aplicacion Flask con un servicio de calculadora que acepta expresiones matematicas y frases sencillas en lenguaje natural. Incluye pruebas con pytest, contenedor Docker y pipeline CI/CD para publicar la imagen en GHCR y desplegarla en un VPS mediante `docker stack deploy`.
+Aplicacion Flask minimal que combina registro/login basico y una calculadora con interpretacion de lenguaje natural. Incluye contenedor Docker, pruebas automatizadas y pipeline CI/CD para publicar en GHCR y desplegar en un stack remoto.
 
 ## Uso local
-1. Crea y activa un entorno virtual (opcional).
-2. Instala dependencias:
+1. Instala dependencias:
    ```bash
    pip install -r requirements.txt
    ```
-3. Ejecuta la app:
+2. Ejecuta:
    ```bash
    python app.py
    ```
-4. Endpoints:
-   - `GET /health` -> `{"status": "ok"}`
-   - `POST /api/calc` con JSON `{"input": "suma 5 y 3"}` o `{"input": "2+2*2"}`
+3. Endpoints:
+   - `POST /api/register` -> JSON `{"username": "ana", "password": "secreto"}` crea usuario (in-memory).
+   - `POST /api/login` -> devuelve `token` ficticio si las credenciales son validas.
+   - `POST /api/calc` -> calcula expresiones o frases sencillas.
+   - `GET /health` -> estado.
 
 ## Pruebas
 ```bash
@@ -22,28 +23,32 @@ pytest
 ```
 
 ## Contenedor
+Construye y prueba la imagen localmente:
 ```bash
-docker build -t ghcr.io/<owner>/almachi:1.0.6 .
-docker run -p 5000:5000 ghcr.io/<owner>/almachi:1.0.6
+docker build -t ghcr.io/<owner>/villarroel:1.0.5 .
+docker run -p 5000:5000 ghcr.io/<owner>/villarroel:1.0.5
 ```
 
 ## Pipeline CI/CD (GitHub Actions)
-- Rama de trabajo: `almachi` (segundo apellido).
-- Jobs:
-  - `test`: instala dependencias y ejecuta `pytest`.
-- `build_and_push`: construye la imagen y la publica en GHCR con tags `1.0.6` y `latest` (`ghcr.io/<owner>/almachi`).
-  - `deploy`: copia `stack.yml` al VPS y despliega con `docker stack deploy` usando la imagen publicada.
+- Rama de trabajo: `villarroel`.
+- Flujo:
+  1. `test`: instala dependencias y ejecuta `pytest`.
+  2. `build_and_push`: construye y publica la imagen en GHCR con tags `1.0.5` y `latest` (`ghcr.io/<owner>/villarroel`).
+  3. `deploy`: se conecta al VPS, obtiene la imagen y ejecuta `docker stack deploy` usando `stack.yml`.
 
 ### Secrets requeridos
-- `GHCR_PAT`: token con permiso `packages:write`.
-- `VPS_HOST`, `VPS_USER`, `VPS_PASSWORD`, `VPS_SSH_PORT`: credenciales SSH al VPS.
-- `STACK_NAME`: nombre del stack a desplegar en el servidor (ej. `almachi-stack`).
+- `GHCR_PAT`: token personal con `packages:write` para que el VPS haga pull.
+- `VPS_HOST`, `VPS_USER`, `VPS_PASSWORD`, `VPS_SSH_PORT`: acceso SSH al VPS.
+- `STACK_NAME`: nombre del stack a desplegar (ej. `villarroel-stack`).
+
+### Variables en runtime del pipeline
+- `IMAGE_VERSION` (default `1.0.5`), `APP_NAME` (`villarroel`), `GH_OWNER` (dueño del repo), `IMAGE_NAME` (`ghcr.io/<owner>/villarroel`).
 
 ## Stack de despliegue
-`stack.yml` usa variables de entorno `GH_OWNER` y `IMAGE_VERSION` (por defecto `1.0.6`). El job de deploy exporta estas variables antes de ejecutar:
+`stack.yml` usa las variables `GH_OWNER` e `IMAGE_VERSION` para apuntar a la imagen publicada y expone el servicio por Traefik con el host `villarroel.byronrm.com`. El pipeline copia el archivo y ejecuta:
 ```bash
-docker stack deploy -c stack.yml <STACK_NAME>
+IMAGE_VERSION=1.0.5 GH_OWNER=<owner> docker stack deploy -c stack.yml <STACK_NAME>
 ```
 
 ## Subdominio
-Asegura que el subdominio `almachi.byronrm.com` apunte al VPS donde se levanta el stack para completar la evidencia del despliegue.
+Asegura que `villarroel.byronrm.com` apunte al VPS donde corre el stack para completar la evidencia del despliegue.

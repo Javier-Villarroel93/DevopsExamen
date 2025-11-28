@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora Flores</title>
+  <title>Calculadora Villarroel</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -32,8 +32,8 @@
     }
     .card {
       width: 100%;
-      max-width: 860px;
-      background: linear-gradient(145deg, rgba(17,24,39,0.95), rgba(17,24,39,0.8));
+      max-width: 880px;
+      background: linear-gradient(145deg, rgba(17,24,39,0.95), rgba(17,24,39,0.82));
       border: 1px solid rgba(255,255,255,0.06);
       border-radius: 20px;
       padding: 28px;
@@ -65,6 +65,70 @@
       color: var(--muted);
       margin-bottom: 18px;
       line-height: 1.5;
+    }
+    .section-title {
+      font-weight: 700;
+      margin: 10px 0 8px;
+      letter-spacing: 0.2px;
+    }
+    .auth-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .panel {
+      background: #0b1221;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 10px;
+      background: rgba(56,189,248,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(56,189,248,0.25);
+      margin-bottom: 8px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    input {
+      width: 100%;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    input:focus {
+      outline: none;
+      border-color: rgba(56,189,248,0.6);
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
+    }
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+      min-height: 18px;
+    }
+    .token {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      background: rgba(255,255,255,0.04);
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+      word-break: break-all;
+      margin-top: 6px;
     }
     .input-row {
       display: grid;
@@ -151,12 +215,36 @@
   <div class="card">
     <header>
       <div>
-        <div class="title">Calculadora Flores</div>
-        <div class="desc">Escribe una expresion (2+2*5) o una frase natural ("suma 5 y 3", "divide 10 entre 2").</div>
+        <div class="title">Calculadora Villarroel + Auth</div>
+        <div class="desc">Login y registro basico en Flask + calculadora con interpretacion de lenguaje natural.</div>
       </div>
-      <div class="pill">API /api/calc</div>
+      <div class="pill">API /api/calc | /api/register | /api/login</div>
     </header>
 
+    <div class="section-title">Registro y login</div>
+    <div class="auth-grid">
+      <div class="panel">
+        <div class="tag">Crear cuenta</div>
+        <label for="reg-user">Usuario</label>
+        <input id="reg-user" placeholder="usuario" autocomplete="username" />
+        <label for="reg-pass">Clave</label>
+        <input id="reg-pass" type="password" placeholder="******" autocomplete="new-password" />
+        <button id="btn-register">Registrarme</button>
+        <div class="note" id="reg-status">Esperando datos...</div>
+      </div>
+      <div class="panel">
+        <div class="tag">Iniciar sesion</div>
+        <label for="login-user">Usuario</label>
+        <input id="login-user" placeholder="usuario" autocomplete="username" />
+        <label for="login-pass">Clave</label>
+        <input id="login-pass" type="password" placeholder="******" autocomplete="current-password" />
+        <button id="btn-login">Entrar</button>
+        <div class="note" id="login-status">Esperando...</div>
+        <div class="token" id="login-token" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="section-title">Calculadora IA</div>
     <div class="input-row">
       <textarea id="input" placeholder="Ejemplos: 2+2*5  |  suma 5 y 3  |  divide 10 entre 2"></textarea>
       <button id="btn">Calcular</button>
@@ -178,6 +266,15 @@
     const modeEl = document.getElementById("mode");
     const resultEl = document.getElementById("result");
     const historyEl = document.getElementById("history");
+    const regUser = document.getElementById("reg-user");
+    const regPass = document.getElementById("reg-pass");
+    const regStatus = document.getElementById("reg-status");
+    const loginUser = document.getElementById("login-user");
+    const loginPass = document.getElementById("login-pass");
+    const loginStatus = document.getElementById("login-status");
+    const loginToken = document.getElementById("login-token");
+    const regBtn = document.getElementById("btn-register");
+    const loginBtn = document.getElementById("btn-login");
 
     const setStatus = (msg, ok=true) => {
       statusEl.textContent = msg;
@@ -188,8 +285,48 @@
       const div = document.createElement("div");
       div.className = "entry";
       div.innerHTML = `<div class="expr">${expr}</div>
-        <small>${ok ? "OK" : "Error"} • Modo: ${mode} • Resultado: ${res}</small>`;
+        <small>${ok ? "OK" : "Error"} | Modo: ${mode} | Resultado: ${res}</small>`;
       historyEl.prepend(div);
+    };
+
+    const postJson = async (url, body) => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error en la API");
+      return data;
+    };
+
+    const registerUser = async () => {
+      regStatus.textContent = "Enviando...";
+      try {
+        const data = await postJson("/api/register", {
+          username: regUser.value,
+          password: regPass.value
+        });
+        regStatus.textContent = `Listo: ${data.username}`;
+      } catch (err) {
+        regStatus.textContent = err.message;
+      }
+    };
+
+    const loginUserFn = async () => {
+      loginStatus.textContent = "Verificando...";
+      loginToken.style.display = "none";
+      try {
+        const data = await postJson("/api/login", {
+          username: loginUser.value,
+          password: loginPass.value
+        });
+        loginStatus.textContent = `Bienvenido ${data.username}`;
+        loginToken.style.display = "block";
+        loginToken.textContent = `Token: ${data.token}`;
+      } catch (err) {
+        loginStatus.textContent = err.message;
+      }
     };
 
     const calculate = async () => {
@@ -220,6 +357,8 @@
     };
 
     btn.addEventListener("click", calculate);
+    regBtn.addEventListener("click", registerUser);
+    loginBtn.addEventListener("click", loginUserFn);
     inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         calculate();
